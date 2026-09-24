@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <title>멀티뷰</title>
+  <link rel="stylesheet" href="multiview.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="group">
+      <span class="label">배치</span>
+      <button class="seg" data-layout="row">☰ 일렬(세로)</button>
+      <button class="seg" data-layout="grid">⊞ 2×2</button>
+    </div>
+    <div class="group">
+      <button class="btn" id="addBtn">＋ 방송 추가</button>
+      <button class="btn" id="chatBtn">💬 채팅</button>
+      <button class="btn ghost" id="backBtn">☰ 즐겨찾기 목록</button>
+    </div>
+  </header>
+
+  <div class="banner" id="noExtension" hidden>
+    이 페이지는 <b>SOOP 즐겨찾기 멀티뷰</b> 확장 프로그램이 있어야 즐겨찾기·로그인·채팅이 작동해요.
+  </div>
+
+  <div class="body">
+    <main class="stage" id="stage"></main>
+
+    <aside class="chat" id="chat" hidden>
+      <div class="chat-head">
+        <select id="chatSelect"></select>
+        <button class="btn" id="chatReload" title="채팅 새로고침">⟳</button>
+      </div>
+      <div class="notice" id="loginNotice" hidden>
+        새 탭에서 SOOP에 로그인한 뒤 <button class="btn" id="noticeReload">채팅 새로고침</button>
+      </div>
+      <iframe id="chatFrame" title="채팅"></iframe>
+    </aside>
+  </div>
+
+  <!-- 방송 고르기 창 (추가 / 교체 공용) -->
+  <div class="picker-backdrop" id="pickerBackdrop" hidden>
+    <section class="picker">
+      <div class="picker-head">
+        <strong id="pickerTitle">방송 추가</strong>
+        <button class="link" id="pickerClose">닫기 ✕</button>
+      </div>
+      <div class="picker-tools">
+        <input id="pickerSearch" type="search" placeholder="이름 검색">
+        <button class="btn" id="pickerRefresh">⟳</button>
+      </div>
+      <div id="pickerList" class="picker-list"></div>
+      <form class="manual" id="manualForm">
+        <input id="manualId" placeholder="즐겨찾기에 없는 방송: 아이디 직접 입력">
+        <button class="btn">열기</button>
+      </form>
+    </section>
+  </div>
+
+  <script src="soop-player.js"></script>
+  <script src="multiview.js"></script>
+</body>
+</html>

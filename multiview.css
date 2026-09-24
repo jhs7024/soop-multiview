@@ -1,0 +1,127 @@
+:root {
+  --bg: #000;
+  --panel: #1f1a15;
+  --line: #3a3026;
+  --text: #efe6da;
+  --muted: #a39584;
+  --gold: #e3b866;
+  --accent: #c9482b;
+  --live: #e5332a;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+  font-family: "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  overflow: hidden;
+}
+button { font: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
+
+/* 상단 바 */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 6px 10px; background: #15120f; border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.group { display: flex; align-items: center; gap: 6px; }
+.label { color: var(--muted); font-size: 13px; margin-right: 2px; }
+.seg, .btn {
+  background: #2a2119; color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 12px; font-size: 13px;
+}
+.seg.on { border-color: var(--gold); color: var(--gold); }
+.btn:hover, .seg:hover { border-color: var(--gold); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.on { background: var(--gold); color: #1b1714; }
+.btn.ghost { background: none; }
+.link { background: none; border: 0; color: var(--muted); }
+
+.body { flex: 1; display: flex; min-height: 0; }
+
+/* 방송 칸: 행 수(--rows)와 칸별 가로 차지는 multiview.js 의 render() 에서 정한다 */
+.stage { flex: 1; display: grid; gap: 3px; min-width: 0; grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr)); }
+.stage[data-layout="row"] { grid-template-columns: minmax(0, 1fr); }
+.stage[data-layout="grid"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.slot { position: relative; background: #0b0a09; min-width: 0; min-height: 0; overflow: hidden; }
+.slot iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.slot-bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+  background: linear-gradient(rgba(0,0,0,.75), transparent);
+  opacity: 0; transition: opacity .15s; pointer-events: none;
+}
+.slot:hover .slot-bar { opacity: 1; pointer-events: auto; }
+.slot-name { font-weight: 700; color: var(--gold); margin-right: auto; text-shadow: 0 1px 2px #000; }
+.slot-bar button {
+  background: rgba(20,17,14,.85); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; font-size: 12px;
+}
+.slot-bar button:hover { border-color: var(--gold); }
+
+/* 방송 종료 알림 */
+.ended {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3;
+  background: rgba(31,26,21,.95); border: 1px solid var(--accent); border-radius: 10px;
+  padding: 10px 14px; display: flex; gap: 10px; align-items: center; white-space: nowrap;
+}
+.ended button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 5px 12px; }
+.ended button.plain { background: #3a3026; }
+
+/* 방송이 하나도 없을 때 */
+.empty {
+  grid-column: 1 / -1;
+  display: grid; place-items: center; background: #0f0d0b;
+  border: 2px dashed var(--line); color: var(--muted); font-size: 18px; cursor: pointer;
+}
+.empty:hover { border-color: var(--gold); color: var(--gold); }
+
+/* 채팅 */
+.chat { width: 350px; flex: none; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: #15120f; }
+.chat-head { display: flex; gap: 6px; padding: 6px; }
+.chat-head select {
+  flex: 1; min-width: 0; padding: 6px; background: #2a2119; color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.notice { margin: 0 6px 6px; padding: 8px 10px; border: 1px solid var(--gold); border-radius: 8px; font-size: 13px; }
+.chat iframe { flex: 1; border: 0; width: 100%; background: #1a1a1a; }
+
+/* 방송 고르기 창 */
+.picker-backdrop {
+  position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.6);
+  display: flex; justify-content: flex-end;
+}
+.picker {
+  width: min(420px, 100%); height: 100%; background: var(--panel);
+  border-left: 1px solid var(--gold); display: flex; flex-direction: column;
+}
+.picker-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; }
+.picker-head strong { color: var(--gold); font-size: 17px; }
+.picker-tools { display: flex; gap: 6px; padding: 0 16px 10px; }
+.picker input {
+  flex: 1; background: #15120f; color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 8px 10px; min-width: 0;
+}
+.picker-list { flex: 1; overflow-y: auto; padding: 0 10px; }
+.picker-msg { color: var(--muted); padding: 20px 6px; text-align: center; line-height: 1.6; }
+.picker-msg a { color: var(--gold); }
+.pick {
+  display: flex; gap: 10px; align-items: center; width: 100%; text-align: left;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  color: var(--text); padding: 6px;
+}
+.pick:hover { border-color: var(--gold); background: #2a2119; }
+.pick img { width: 112px; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; background: #0b0a09; flex: none; }
+.pick .meta { min-width: 0; }
+.pick .nick { color: var(--gold); font-weight: 700; }
+.pick .viewers { font-size: 12px; color: var(--muted); }
+.pick .viewers::before { content: "● "; color: var(--live); }
+.pick .title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.manual { display: flex; gap: 6px; padding: 12px 16px; border-top: 1px solid var(--line); }
+
+/* 확장 프로그램이 없을 때 안내 */
+.banner { padding: 8px 12px; background: #3a2a14; border-bottom: 1px solid var(--gold); font-size: 13px; }
