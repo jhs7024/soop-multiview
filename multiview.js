@@ -295,7 +295,15 @@ function renderChat() {
   const open = !$('chat').hidden;
   const want = open && state.chatId && readyIds.has(state.chatId) ? SOOP.chatUrl(state.chatId) : 'about:blank';
   const frame = $('chatFrame');
-  if (frame.src !== want) frame.src = want;
+  if (frame.src !== want) {
+    // SOOP 플레이어가 재생 중에 자기 칸 이름을 바꿀 수 있어서, 채팅이 플레이어를 찾을 수 있게 이름을 다시 붙인다
+    const player = slotEls.get(state.chatId)?.querySelector('iframe');
+    if (player && want !== 'about:blank') {
+      player.name = '';
+      player.name = SOOP.frameName(state.chatId);
+    }
+    frame.src = want;
+  }
   $('chatBtn').classList.toggle('on', open);
 }
 
