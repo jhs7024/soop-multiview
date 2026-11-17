@@ -15,6 +15,8 @@ const slotEls = new Map();        // 방송 아이디 → 칸 요소 (칸을 다
 const readyIds = new Set();       // 플레이어가 "준비됨" 신호를 보낸 방송 (채팅은 플레이어가 준비된 뒤에 연결)
 const liveNicks = new Map();      // 플레이어가 알려준 닉네임 (즐겨찾기에 없는 방송용)
 let pickerTarget = null;          // null 이면 추가, 아이디면 그 칸 교체
+const MAX_CHAT_RETRIES = 3;       // 채팅이 안 붙을 때 자동으로 다시 연결하는 최대 횟수
+let chatRetries = 0;
 
 const $ = (id) => document.getElementById(id);
 
@@ -131,13 +133,29 @@ window.addEventListener('message', (e) => {
     $('loginNotice').hidden = false;
     return;
   }
+  if (e.data.cmd === 'smvChatStalled' && e.source === $('chatFrame').contentWindow) {
+    // 채팅이 플레이어와 연결되지 못함 (soop-frame.js 가 알려줌) → 몇 번까지 자동으로 다시 연결
+    if (chatRetries < MAX_CHAT_RETRIES) {
+      chatRetries++;
+      console.warn(`[멀티뷰] 채팅이 비어 있어서 다시 연결합니다 (${chatRetries}/${MAX_CHAT_RETRIES})`);
+      reloadChat(false);
+    } else {
+      console.warn('[멀티뷰] 채팅 자동 재연결 실패. 채팅 칸의 ⟳ 를 눌러주세요.');
+    }
+    return;
+  }
   const el = [...slotEls.values()].find((s) => s.querySelector('iframe').contentWindow === e.source);
   if (!el) return;
   const id = el.dataset.id;
   if (e.data.cmd === 'PonReady') {
     e.source.postMessage(SOOP.ploadMessage(id), SOOP.PLAYER_ORIGIN);
+    const reloaded = readyIds.has(id); // 이미 준비됐던 플레이어가 다시 로딩됨 (재접속, 방송 재시작 등)
     readyIds.add(id);
-    if (id === state.chatId) renderChat();
+    if (id === state.chatId) {
+      // 플레이어가 다시 로딩되면 채팅과의 연결이 끊기므로 채팅도 다시 연다
+      if (reloaded && !$('chat').hidden) reloadChat(false);
+      else renderChat();
+    }
   }
   if (e.data.cmd === 'PupdateBroadInfo' && e.data.data?.nick) {
     liveNicks.set(id, e.data.data.nick);
@@ -281,7 +299,9 @@ function renderChat() {
   $('chatBtn').classList.toggle('on', open);
 }
 
-function reloadChat() {
+// manual: 사용자가 ⟳ 를 눌렀으면 자동 재연결 횟수도 처음부터 다시 센다
+function reloadChat(manual = true) {
+  if (manual) chatRetries = 0;
   $('loginNotice').hidden = true;
   $('chatFrame').src = 'about:blank';
   setTimeout(renderChat, 100);
@@ -295,9 +315,9 @@ document.querySelectorAll('.seg').forEach((b) => b.addEventListener('click', () 
 }));
 $('addBtn').addEventListener('click', () => openPicker(null));
 $('chatBtn').addEventListener('click', () => { $('chat').hidden = !$('chat').hidden; renderChat(); });
-$('chatSelect').addEventListener('change', (e) => { state.chatId = e.target.value; renderChat(); });
-$('chatReload').addEventListener('click', reloadChat);
-$('noticeReload').addEventListener('click', reloadChat);
+$('chatSelect').addEventListener('change', (e) => { state.chatId = e.target.value; chatRetries = 0; renderChat(); });
+$('chatReload').addEventListener('click', () => reloadChat(true));
+$('noticeReload').addEventListener('click', () => reloadChat(true));
 $('backBtn').addEventListener('click', () => askExtension('openApp').catch(() => {}));
 $('pickerClose').addEventListener('click', closePicker);
 $('pickerBackdrop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closePicker(); });
