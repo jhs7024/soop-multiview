@@ -16,7 +16,8 @@ const readyIds = new Set();       // 플레이어가 "준비됨" 신호를 보�
 const liveNicks = new Map();      // 플레이어가 알려준 닉네임 (즐겨찾기에 없는 방송용)
 let pickerTarget = null;          // null 이면 추가, 아이디면 그 칸 교체
 const MAX_CHAT_RETRIES = 3;       // 채팅이 안 붙을 때 자동으로 다시 연결하는 최대 횟수
-let chatRetries = 0;
+const chatFrames = new Map();     // 방송 아이디 → 채팅 화면 (채팅 칸을 닫아도 숨기기만 해서 기록이 이어짐)
+const chatRetries = new Map();    // 방송 아이디 → 자동 재연결 횟수
 
 const $ = (id) => document.getElementById(id);
 
@@ -133,14 +134,17 @@ window.addEventListener('message', (e) => {
     $('loginNotice').hidden = false;
     return;
   }
-  if (e.data.cmd === 'smvChatStalled' && e.source === $('chatFrame').contentWindow) {
+  if (e.data.cmd === 'smvChatStalled') {
     // 채팅이 플레이어와 연결되지 못함 (soop-frame.js 가 알려줌) → 몇 번까지 자동으로 다시 연결
-    if (chatRetries < MAX_CHAT_RETRIES) {
-      chatRetries++;
-      console.warn(`[멀티뷰] 채팅이 비어 있어서 다시 연결합니다 (${chatRetries}/${MAX_CHAT_RETRIES})`);
-      reloadChat(false);
+    const chatId = [...chatFrames].find(([, f]) => f.contentWindow === e.source)?.[0];
+    if (!chatId) return;
+    const n = chatRetries.get(chatId) || 0;
+    if (n < MAX_CHAT_RETRIES) {
+      chatRetries.set(chatId, n + 1);
+      console.warn(`[멀티뷰] ${nickOf(chatId)} 채팅이 비어 있어서 다시 연결합니다 (${n + 1}/${MAX_CHAT_RETRIES})`);
+      reloadChat(chatId, false);
     } else {
-      console.warn('[멀티뷰] 채팅 자동 재연결 실패. 채팅 칸의 ⟳ 를 눌러주세요.');
+      console.warn(`[멀티뷰] ${nickOf(chatId)} 채팅 자동 재연결 실패. 채팅 칸의 ⟳ 를 눌러주세요.`);
     }
     return;
   }
@@ -151,11 +155,9 @@ window.addEventListener('message', (e) => {
     e.source.postMessage(SOOP.ploadMessage(id), SOOP.PLAYER_ORIGIN);
     const reloaded = readyIds.has(id); // 이미 준비됐던 플레이어가 다시 로딩됨 (재접속, 방송 재시작 등)
     readyIds.add(id);
-    if (id === state.chatId) {
-      // 플레이어가 다시 로딩되면 채팅과의 연결이 끊기므로 채팅도 다시 연다
-      if (reloaded && !$('chat').hidden) reloadChat(false);
-      else renderChat();
-    }
+    // 플레이어가 다시 로딩되면 채팅과의 연결이 끊기므로 그 방송 채팅도 다시 연다
+    if (reloaded && chatFrames.has(id)) reloadChat(id, false);
+    else renderChat();
   }
   if (e.data.cmd === 'PupdateBroadInfo' && e.data.data?.nick) {
     liveNicks.set(id, e.data.data.nick);
@@ -288,30 +290,50 @@ async function refreshFavorites(userAction = false) {
 // ---------- 채팅 ----------
 // SOOP 채팅 전용 화면을 열고, 확장 프로그램의 soop-frame.js 가 그 화면을 같은 방송의 플레이어 칸에 연결한다.
 // 그래서 플레이어가 준비된 뒤에 채팅을 연다.
+// 방송마다 채팅 화면을 하나씩 미리 열어두고, 채팅 칸을 닫거나 다른 방송을 골라도 지우지 않고 숨기기만 한다.
+// → 멀티뷰를 연 뒤의 채팅 기록이 계속 쌓이고, 다시 열면 이어서 볼 수 있다.
 function renderChat() {
   if (!state.ids.includes(state.chatId)) state.chatId = state.ids[0] || null;
   const select = $('chatSelect');
   select.replaceChildren(...state.ids.map((id) => new Option(nickOf(id), id, false, id === state.chatId)));
-  const open = !$('chat').hidden;
-  const want = open && state.chatId && readyIds.has(state.chatId) ? SOOP.chatUrl(state.chatId) : 'about:blank';
-  const frame = $('chatFrame');
-  if (frame.src !== want) {
-    // SOOP 플레이어가 재생 중에 자기 칸 이름을 바꿀 수 있어서, 채팅이 플레이어를 찾을 수 있게 이름을 다시 붙인다
-    const player = slotEls.get(state.chatId)?.querySelector('iframe');
-    if (player && want !== 'about:blank') {
-      player.name = '';
-      player.name = SOOP.frameName(state.chatId);
-    }
-    frame.src = want;
+
+  // 빠진 방송의 채팅 화면은 지운다
+  for (const [id, frame] of chatFrames) {
+    if (!state.ids.includes(id)) { frame.remove(); chatFrames.delete(id); chatRetries.delete(id); }
   }
+  // 플레이어가 준비된 방송은 채팅 화면을 미리 만들어 둔다 (숨긴 채로 기록을 쌓음)
+  for (const id of state.ids) {
+    if (readyIds.has(id) && !chatFrames.has(id)) openChatFrame(id);
+  }
+
+  const open = !$('chat').hidden;
+  for (const [id, frame] of chatFrames) frame.hidden = !(open && id === state.chatId);
   $('chatBtn').classList.toggle('on', open);
 }
 
+function openChatFrame(id) {
+  // SOOP 플레이어가 재생 중에 자기 칸 이름을 바꿀 수 있어서, 채팅이 플레이어를 찾을 수 있게 이름을 다시 붙인다
+  const player = slotEls.get(id)?.querySelector('iframe');
+  if (player) {
+    player.name = '';
+    player.name = SOOP.frameName(id);
+  }
+  const frame = document.createElement('iframe');
+  frame.title = '채팅';
+  frame.hidden = true;
+  frame.src = SOOP.chatUrl(id);
+  $('chat').append(frame);
+  chatFrames.set(id, frame);
+}
+
+// 한 방송의 채팅을 다시 연다 (그 방송 기록은 처음부터 다시 쌓임)
 // manual: 사용자가 ⟳ 를 눌렀으면 자동 재연결 횟수도 처음부터 다시 센다
-function reloadChat(manual = true) {
-  if (manual) chatRetries = 0;
+function reloadChat(id = state.chatId, manual = true) {
+  if (!id) return;
+  if (manual) chatRetries.delete(id);
   $('loginNotice').hidden = true;
-  $('chatFrame').src = 'about:blank';
+  chatFrames.get(id)?.remove();
+  chatFrames.delete(id);
   setTimeout(renderChat, 100);
 }
 
@@ -323,9 +345,9 @@ document.querySelectorAll('.seg').forEach((b) => b.addEventListener('click', () 
 }));
 $('addBtn').addEventListener('click', () => openPicker(null));
 $('chatBtn').addEventListener('click', () => { $('chat').hidden = !$('chat').hidden; renderChat(); });
-$('chatSelect').addEventListener('change', (e) => { state.chatId = e.target.value; chatRetries = 0; renderChat(); });
-$('chatReload').addEventListener('click', () => reloadChat(true));
-$('noticeReload').addEventListener('click', () => reloadChat(true));
+$('chatSelect').addEventListener('change', (e) => { state.chatId = e.target.value; renderChat(); });
+$('chatReload').addEventListener('click', () => reloadChat(state.chatId, true));
+$('noticeReload').addEventListener('click', () => reloadChat(state.chatId, true));
 $('backBtn').addEventListener('click', () => askExtension('openApp').catch(() => {}));
 $('pickerClose').addEventListener('click', closePicker);
 $('pickerBackdrop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closePicker(); });
@@ -355,6 +377,7 @@ async function syncLogin() {
   }
 }
 
+$('chatFrame')?.remove(); // 채팅 화면은 방송마다 따로 만든다 (openChatFrame)
 readHash();
 syncLogin().finally(() => {
   render();
