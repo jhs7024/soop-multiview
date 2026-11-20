@@ -15,9 +15,14 @@ const slotEls = new Map();        // 방송 아이디 → 칸 요소 (칸을 다
 const readyIds = new Set();       // 플레이어가 "준비됨" 신호를 보낸 방송 (채팅은 플레이어가 준비된 뒤에 연결)
 const liveNicks = new Map();      // 플레이어가 알려준 닉네임 (즐겨찾기에 없는 방송용)
 let pickerTarget = null;          // null 이면 추가, 아이디면 그 칸 교체
-const MAX_CHAT_RETRIES = 3;       // 채팅이 안 붙을 때 자동으로 다시 연결하는 최대 횟수
+// 채팅이 안 붙을 때 자동으로 다시 연결하는 최대 횟수 (약 12초 간격)
+// 플레이어가 광고 등으로 준비가 덜 됐을 때 채팅창이 연결되면 채팅을 넘겨받지 못하는데, 다시 연결하면 풀린다
+const MAX_CHAT_RETRIES = 10;
 const chatFrames = new Map();     // 방송 아이디 → 채팅 화면 (채팅 칸을 닫아도 숨기기만 해서 기록이 이어짐)
 const chatRetries = new Map();    // 방송 아이디 → 자동 재연결 횟수
+let chatOpen = false;             // 채팅 칸이 열려 있는지
+// 숨긴 채팅 화면은 크기를 유지한 채 화면 밖으로 치운다 (크기 0으로 숨기면 SOOP 채팅이 제대로 시작하지 않음)
+const CHAT_OFFSCREEN = 'position:absolute;left:-10000px;top:0;width:350px;height:100%;visibility:hidden;';
 
 const $ = (id) => document.getElementById(id);
 
@@ -306,9 +311,14 @@ function renderChat() {
     if (readyIds.has(id) && !chatFrames.has(id)) openChatFrame(id);
   }
 
-  const open = !$('chat').hidden;
-  for (const [id, frame] of chatFrames) frame.hidden = !(open && id === state.chatId);
-  $('chatBtn').classList.toggle('on', open);
+  // 채팅 칸을 닫아도 display:none 으로 숨기지 않고 화면 밖으로 치운다 (안의 채팅 화면들이 계속 돌도록)
+  const aside = $('chat');
+  aside.hidden = false;
+  aside.style.cssText = chatOpen ? 'position:relative;' : 'position:fixed;left:-10000px;top:0;height:100vh;visibility:hidden;';
+  for (const [id, frame] of chatFrames) {
+    frame.style.cssText = chatOpen && id === state.chatId ? '' : CHAT_OFFSCREEN;
+  }
+  $('chatBtn').classList.toggle('on', chatOpen);
 }
 
 function openChatFrame(id) {
@@ -320,7 +330,7 @@ function openChatFrame(id) {
   }
   const frame = document.createElement('iframe');
   frame.title = '채팅';
-  frame.hidden = true;
+  frame.style.cssText = CHAT_OFFSCREEN;
   frame.src = SOOP.chatUrl(id);
   $('chat').append(frame);
   chatFrames.set(id, frame);
@@ -344,7 +354,7 @@ document.querySelectorAll('.seg').forEach((b) => b.addEventListener('click', () 
   render();
 }));
 $('addBtn').addEventListener('click', () => openPicker(null));
-$('chatBtn').addEventListener('click', () => { $('chat').hidden = !$('chat').hidden; renderChat(); });
+$('chatBtn').addEventListener('click', () => { chatOpen = !chatOpen; renderChat(); });
 $('chatSelect').addEventListener('change', (e) => { state.chatId = e.target.value; renderChat(); });
 $('chatReload').addEventListener('click', () => reloadChat(state.chatId, true));
 $('noticeReload').addEventListener('click', () => reloadChat(state.chatId, true));
